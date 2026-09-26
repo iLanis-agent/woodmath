@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WoodMath - honest firewood math</title>
+<style>
+  :root { --bg:#161210; --card:#211a15; --ink:#f4ece2; --dim:#b3a48f; --acc:#e8963e; --hot:#8fd98a; --cold:#d98a8a; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding:28px 24px 8px; max-width:980px; margin:0 auto; display:flex; justify-content:space-between; align-items:baseline; }
+  h1 { margin:0; font-size:28px; }
+  h1 span { color:var(--acc); }
+  nav a { color:var(--dim); text-decoration:none; font-size:14px; }
+  main { max-width:980px; margin:0 auto; padding:16px 24px 60px; display:grid; gap:18px; }
+  .card { background:var(--card); border-radius:14px; padding:20px; }
+  .card h2 { margin:0 0 12px; font-size:13px; letter-spacing:1.5px; color:var(--dim); text-transform:uppercase; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; }
+  label { display:block; font-size:13px; color:var(--dim); margin-bottom:4px; }
+  input, select { width:100%; background:#171310; border:1px solid #453627; color:var(--ink); border-radius:8px; padding:9px 10px; font-size:15px; }
+  .hint { font-size:12.5px; color:var(--dim); margin-top:10px; }
+  button { cursor:pointer; border:0; border-radius:9px; padding:11px 16px; font-size:15px; background:var(--acc); color:#2a1a08; font-weight:600; }
+  button.ghost { background:#342a20; color:var(--ink); font-weight:500; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+  .verdict { font-size:17px; line-height:1.65; }
+  .verdict b { color:var(--acc); }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-top:16px; }
+  .stat { background:#171310; border-radius:10px; padding:12px; }
+  .stat .v { font-size:19px; font-weight:700; color:var(--acc); }
+  .stat .k { font-size:12px; color:var(--dim); margin-top:2px; }
+  .badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:12.5px; font-weight:600; margin-left:8px; }
+  .b-beats-gas { background:#22331b; color:var(--hot); }
+  .b-beats-electric { background:#1d3320; color:var(--hot); }
+  .b-wash { background:#3a3016; color:var(--acc); }
+  .b-labor-of-love { background:#3a1d1d; color:var(--cold); }
+  .note { margin-top:14px; font-size:13.5px; color:var(--dim); }
+  .note b { color:var(--acc); font-weight:600; }
+  #logLenRow.hidden { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Wood<span>Math</span></h1>
+  <nav><a href="index.html">home</a></nav>
+</header>
+<main>
+  <section class="card">
+    <h2>The deal on the table</h2>
+    <div class="grid">
+      <div><label>Species</label><select id="species"></select></div>
+      <div><label>Price ($)</label><input id="price" type="number" step="1" value="300"></div>
+      <div><label>Sold as</label><select id="unit">
+        <option value="cord">full cord (128 cu ft)</option>
+        <option value="face">face cord / rick</option>
+        <option value="bundle">store bundle</option>
+      </select></div>
+      <div><label>How many</label><input id="count" type="number" step="0.5" value="1"></div>
+      <div id="logLenRow" class="hidden"><label>Log length (inches)</label><input id="logIn" type="number" value="16"></div>
+      <div><label>Stove efficiency</label><select id="stove">
+        <option value="0.7">modern EPA stove (70%)</option>
+        <option value="0.8">top catalytic (80%)</option>
+        <option value="0.55">old smoke dragon (55%)</option>
+        <option value="0.15">open fireplace (15%)</option>
+      </select></div>
+      <div><label>Split how many months ago</label><input id="months" type="number" value="0"></div>
+    </div>
+    <p class="hint">A "face cord" is only a full cord if the logs are 4 feet long. At the usual 16 inches it is a third of a cord - same face, one third the wood.</p>
+  </section>
+
+  <section class="card">
+    <h2>What heat costs you now</h2>
+    <div class="grid">
+      <div><label>Electricity ($/kWh)</label><input id="kwh" type="number" step="0.01" value="0.15"></div>
+      <div><label>Natural gas ($/therm)</label><input id="therm" type="number" step="0.05" value="1.20"></div>
+      <div><label>Furnace efficiency</label><select id="furnace">
+        <option value="0.92">condensing (92%)</option>
+        <option value="0.8">older (80%)</option>
+      </select></div>
+    </div>
+    <div class="row">
+      <button id="run">Price this wood honestly</button>
+      <button class="ghost" data-preset="deal">$300 cord of oak</button>
+      <button class="ghost" data-preset="gas">$7 store bundle</button>
+      <button class="ghost" data-preset="fireplace">open fireplace truth</button>
+    </div>
+  </section>
+
+  <section class="card" id="result" hidden>
+    <h2>The verdict</h2>
+    <p class="verdict" id="verdictText"></p>
+    <div class="stats" id="stats"></div>
+    <p class="note" id="advice"></p>
+  </section>
+
+  <section class="card">
+    <h2>Why a "cord" is often not a cord</h2>
+    <p class="note">A full cord is <b>128 cubic feet</b> stacked - 4 x 4 x 8. A face cord is one row of that: at 16-inch logs it is <b>a third of a cord</b>, and plenty of sellers price it like the whole thing. Heat is species, not looks: hickory delivers roughly <b>80% more BTU per cord than pine</b>. And the stove is half the story - an open fireplace sends <b>85% of the heat up the chimney</b>, which turns the same wood into the most expensive heat you can buy. Dry matters too: green wood burns its own energy boiling off water.</p>
+  </section>
+</main>
+<script src="engine.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var sp = $('species');
+  WoodMath.SPECIES.forEach(function (s) {
+    var o = document.createElement('option');
+    o.value = s.id;
+    o.textContent = s.name + ' (' + s.mbtu + ' MBTU/cord)';
+    sp.appendChild(o);
+  });
+  sp.value = 'oak';
+
+  $('unit').onchange = function () {
+    $('logLenRow').classList.toggle('hidden', $('unit').value !== 'face');
+  };
+
+  var PRESETS = {
+    deal: { species: 'oak', price: 300, unit: 'cord', count: 1, stove: '0.7', months: 0 },
+    gas: { species: 'pine', price: 7, unit: 'bundle', count: 1, stove: '0.7', months: 0 },
+    fireplace: { species: 'birch', price: 350, unit: 'face', count: 1, stove: '0.15', months: 0 }
+  };
+  document.querySelectorAll('[data-preset]').forEach(function (b) {
+    b.onclick = function () {
+      var p = PRESETS[b.dataset.preset];
+      $('species').value = p.species; $('price').value = p.price; $('unit').value = p.unit;
+      $('count').value = p.count; $('stove').value = p.stove; $('months').value = p.months;
+      $('logLenRow').classList.toggle('hidden', p.unit !== 'face');
+      run();
+    };
+  });
+
+  function run() {
+    var s = WoodMath.SPECIES.find(function (x) { return x.id === $('species').value; });
+    var price = +$('price').value || 0;
+    var unit = $('unit').value;
+    var count = +$('count').value || 0;
+    var logIn = +$('logIn').value || 16;
+    var eff = +$('stove').value;
+    var months = +$('months').value || 0;
+    var elec = WoodMath.electricCostPerMbtu(+$('kwh').value || 0);
+    var gas = WoodMath.gasCostPerMbtu(+$('therm').value || 0, +$('furnace').value);
+
+    var cords = WoodMath.cordsDelivered(unit, count, logIn);
+    var cpm = WoodMath.costPerMbtu(price, s, unit, count, logIn, eff);
+    var v = WoodMath.verdict(cpm, elec, gas);
+    var sv = WoodMath.seasonVerdict(s, months);
+
+    var unitName = unit === 'cord' ? 'cord' : (unit === 'face' ? 'face cord' : 'bundle');
+    var text = 'This $' + price + ' ' + unitName + ' of ' + s.name.toLowerCase() + ' is really <b>' +
+      (Math.round(cords * 100) / 100) + ' cord' + (Math.abs(cords - 1) < 0.005 ? '' : 's') + '</b> of wood. ';
+    text += 'Delivered into the room, that is <b>' + WoodMath.fmtMoney(cpm) + ' per million BTU</b> - against ' +
+      WoodMath.fmtMoney(elec) + ' for electric resistance and ' + WoodMath.fmtMoney(gas) + ' for your gas furnace.';
+
+    $('verdictText').innerHTML = text + ' <span class="badge b-' + v.code + '">' + v.label + '</span>';
+
+    var room = cords * s.mbtu * eff;
+    var stats = [
+      { v: WoodMath.fmtMoney(cpm), k: 'your wood, $/MBTU in the room' },
+      { v: WoodMath.fmtMoney(elec), k: 'electric resistance, $/MBTU' },
+      { v: WoodMath.fmtMoney(gas), k: 'gas furnace, $/MBTU' },
+      { v: (Math.round(room * 10) / 10) + ' MBTU', k: 'heat into the room' },
+      { v: Math.round(cords * 128) + ' cu ft', k: 'actual stacked volume' },
+      { v: sv.ready ? 'ready' : 'green', k: sv.label }
+    ];
+    $('stats').innerHTML = stats.map(function (x) {
+      return '<div class="stat"><div class="v">' + x.v + '</div><div class="k">' + x.k + '</div></div>';
+    }).join('');
+
+    var advice;
+    if (unit === 'bundle') {
+      var bm = WoodMath.bundleMarkup(price, s, 300);
+      advice = 'The bundle trap: at this price you are paying <b>' + bm.multiple + 'x</b> the going $300-a-cord rate per BTU. Bundles are for one pretty fire, not for heat.';
+    } else if (eff < 0.3) {
+      advice = 'The open fireplace is the expensive part: 85% of this heat leaves through the chimney. The same wood in an EPA stove would cost ' +
+        WoodMath.fmtMoney(WoodMath.costPerMbtu(price, s, unit, count, logIn, 0.7)) + ' per MBTU - a fraction of this.';
+    } else if (!sv.ready) {
+      advice = s.name + ' needs about ' + s.season + ' months split and stacked. Burned green, part of every log boils water instead of heating you - wait it out, or buy ash (6 months).';
+    } else if (v.code === 'labor-of-love') {
+      advice = 'At this price the furnace wins the math. Keep the fire for the evenings that deserve one - and do not let anyone call it cheap heat.';
+    } else {
+      advice = 'Honest tip: ' + s.note.toLowerCase() + '. Stack off the ground, top covered, sides open - air dries wood, tarps stew it.';
+    }
+    $('advice').innerHTML = advice;
+
+    $('result').hidden = false;
+    $('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  $('run').onclick = run;
+})();
+</script>
+</body>
+</html>
